@@ -10,15 +10,15 @@ class EventProposalAssistant {
         this.recordingIndicator = document.getElementById('recordingIndicator');
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.charCount = document.getElementById('charCount');
-        
+
         // Speech Recognition setup
         this.recognition = null;
         this.isRecording = false;
         this.setupSpeechRecognition();
-        
+
         // Initialize event listeners
         this.initializeEventListeners();
-        
+
         // Sample responses for demo
         this.responses = [
             "Generating event proposal based on your input...",
@@ -33,7 +33,7 @@ class EventProposalAssistant {
     initializeEventListeners() {
         // Send button click
         this.sendButton.addEventListener('click', () => this.sendMessage());
-        
+
         // Enter key to send message (Shift+Enter for new line)
         this.messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -41,13 +41,13 @@ class EventProposalAssistant {
                 this.sendMessage();
             }
         });
-        
+
         // Auto-resize textarea
         this.messageInput.addEventListener('input', () => {
             this.autoResizeTextarea();
             this.updateCharCount();
         });
-        
+
         // Microphone button
         this.micButton.addEventListener('click', () => {
             if (this.isRecording) {
@@ -56,7 +56,7 @@ class EventProposalAssistant {
                 this.startRecording();
             }
         });
-        
+
         // Initial character count
         this.updateCharCount();
     }
@@ -73,12 +73,12 @@ class EventProposalAssistant {
         // Initialize Speech Recognition
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.recognition = new SpeechRecognition();
-        
+
         // Configure recognition settings - Manual control with continuous listening
         this.recognition.continuous = true;
         this.recognition.interimResults = false;
         this.recognition.lang = 'en-US';
-        
+
         // Handle speech recognition results
         this.recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
@@ -87,7 +87,7 @@ class EventProposalAssistant {
             this.updateCharCount();
             this.messageInput.focus();
         };
-        
+
         // Handle recognition end - Only stop if manually stopped
         this.recognition.onend = () => {
             // Only reset UI if we're not manually recording
@@ -95,7 +95,7 @@ class EventProposalAssistant {
                 this.resetMicrophoneUI();
             }
         };
-        
+
         // Handle recognition errors
         this.recognition.onerror = (event) => {
             console.error('Speech recognition error:', event.error);
@@ -115,15 +115,15 @@ class EventProposalAssistant {
             this.isRecording = true;
             this.micButton.classList.add('recording');
             this.recordingIndicator.classList.remove('hidden');
-            
+
             // Update mic button icon to show recording state
             this.micButton.innerHTML = '<i class="fas fa-stop"></i>';
             this.micButton.title = 'Stop Recording';
-            
+
             this.recognition.start();
-            
+
             // No automatic timeout - fully manual control
-            
+
         } catch (error) {
             console.error('Error starting speech recognition:', error);
             this.resetMicrophoneUI();
@@ -136,7 +136,7 @@ class EventProposalAssistant {
         if (this.recognition && this.isRecording) {
             this.recognition.stop();
         }
-        
+
         this.isRecording = false;
         this.resetMicrophoneUI();
     }
@@ -153,7 +153,7 @@ class EventProposalAssistant {
     autoResizeTextarea() {
         this.messageInput.style.height = 'auto';
         this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
-        
+
         // Enable/disable send button based on input
         this.sendButton.disabled = this.messageInput.value.trim().length === 0;
     }
@@ -162,7 +162,7 @@ class EventProposalAssistant {
     updateCharCount() {
         const count = this.messageInput.value.length;
         this.charCount.textContent = count;
-        
+
         // Change color based on character limit - Updated for dark theme
         if (count > 900) {
             this.charCount.style.color = '#ff6b6b';
@@ -176,17 +176,20 @@ class EventProposalAssistant {
     // Send message function
     sendMessage() {
         const message = this.messageInput.value.trim();
-        
+
         if (!message) return;
-        
+
         // Add user message to chat
         this.addMessage(message, 'user');
-        
+
         // Clear input
         this.messageInput.value = '';
         this.autoResizeTextarea();
         this.updateCharCount();
-        
+
+        // Store last user message for API call
+        this.lastUserMessage = message;
+
         // Simulate system response
         this.simulateSystemResponse();
     }
@@ -195,16 +198,16 @@ class EventProposalAssistant {
     addMessage(text, sender = 'system') {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
-        
+
         const currentTime = new Date().toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit'
         });
-        
-        const avatar = sender === 'user' ? 
-            '<i class="fas fa-user"></i>' : 
+
+        const avatar = sender === 'user' ?
+            '<i class="fas fa-user"></i>' :
             '<i class="fas fa-robot"></i>';
-        
+
         messageDiv.innerHTML = `
             <div class="message-avatar">
                 ${avatar}
@@ -214,7 +217,7 @@ class EventProposalAssistant {
                 <div class="message-time">${currentTime}</div>
             </div>
         `;
-        
+
         this.chatMessages.appendChild(messageDiv);
         this.scrollToBottom();
     }
@@ -238,7 +241,7 @@ class EventProposalAssistant {
                 </div>
             </div>
         `;
-        
+
         // Add typing animation CSS - Updated for dark theme
         const typingStyle = document.createElement('style');
         typingStyle.textContent = `
@@ -273,84 +276,66 @@ class EventProposalAssistant {
             }
         `;
         document.head.appendChild(typingStyle);
-        
+
         this.chatMessages.appendChild(typingDiv);
         this.scrollToBottom();
-        
+
         // Remove typing indicator and add actual response after delay
         setTimeout(() => {
             typingDiv.remove();
             const randomResponse = this.responses[Math.floor(Math.random() * this.responses.length)];
             this.addMessage(randomResponse);
-            
+
             // Add follow-up message for event proposal generation
-            setTimeout(() => {
-                const followUp = this.generateEventProposalResponse();
+            setTimeout(async () => {
+                const followUp = await this.generateEventProposalResponse(this.lastUserMessage);
                 this.addMessage(followUp);
             }, 2000);
-            
+
         }, 1500 + Math.random() * 1000); // Random delay 1.5-2.5s
     }
 
-    // Generate a sample event proposal response
-    generateEventProposalResponse() {
-        const proposals = [
-            `📋 **Event Proposal Generated Successfully!**
+    // Generate event proposal by calling backend API
+    async generateEventProposalResponse(userInputText) {
+        const userInput = userInputText || "Event details provided earlier.";
 
-Here's your customized event proposal:
+        try {
+            // Show processing message
+            this.addMessage("Processing your request... This may take a few seconds.", 'system');
 
-**Event Overview:**
-• Professional planning with detailed timeline
-• Budget breakdown with cost-effective options  
-• Venue recommendations based on your requirements
-• Catering and logistics coordination
+            const response = await fetch('http://127.0.0.1:8000/api/generate-circular', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: userInput
+                })
+            });
 
-**Next Steps:**
-1. Review the detailed proposal document
-2. Select preferred venue and catering options
-3. Confirm final guest count and special requirements
-4. Schedule follow-up planning meeting
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
 
-Would you like me to modify any aspects of this proposal or add additional details?`,
+            // Get the blob from response
+            const blob = await response.blob();
 
-            `✨ **Your Event Proposal is Ready!**
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'event_circular.docx';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
 
-I've created a comprehensive proposal that includes:
+            return `✅ **Success!**\n\nThe event circular has been generated and downloaded as a Word document.\n\nPlease check your downloads folder for 'event_circular.docx'.`;
 
-**Key Features:**
-• Complete event timeline and checklist
-• Vendor recommendations with contact details
-• Risk management and contingency planning
-• Post-event evaluation framework
-
-**Included Services:**
-• Event coordination and management
-• Marketing and promotion support
-• On-site coordination team
-• Technical equipment and setup
-
-Please let me know if you'd like to adjust the scope, budget, or any specific requirements!`,
-
-            `🎉 **Event Proposal Completed Successfully!**
-
-Your customized event proposal covers:
-
-**Planning Highlights:**
-• Detailed project timeline with milestones
-• Comprehensive budget with payment schedule
-• Venue setup and layout recommendations
-• Entertainment and speaker coordination
-
-**Additional Services:**
-• Registration and guest management
-• Photography and videography options
-• Catering menu with dietary accommodations
-• Transportation and parking solutions
-
-Ready to move forward with your event planning? I can help refine any details!`
-        ];
-        
-        return proposals[Math.floor(Math.random() * proposals.length)];
+        } catch (error) {
+            console.error('Error generating circular:', error);
+            return `❌ **Error**\n\nFailed to generate the circular. Please try again.\n\nDetails: ${error.message}`;
+        }
     }
 
     // Scroll chat to bottom
@@ -377,9 +362,9 @@ Ready to move forward with your event planning? I can help refine any details!`
             z-index: 1001;
             animation: slideInRight 0.3s ease-out;
         `;
-        
+
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.style.animation = 'slideOutRight 0.3s ease-in forwards';
             setTimeout(() => notification.remove(), 300);
